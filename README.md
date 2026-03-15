@@ -17,18 +17,17 @@ This document provides a detailed breakdown of the modifications, improvements, 
 - **Volume Ramp:** `AUDIO_VOLUME_RAMP_STEPS` to adjust fade speed (default 50, use 25 for faster response).
 
 ### 📊 Resource Savings (Flash & Static RAM)
-  ┌───────────────────────┬────────────┬────────────┬──────────────┐
-  │ Module Disabled       │ Flash Gain │ RAM Gain   │ Impact       │
-  ├───────────────────────┼────────────┼────────────┼──────────────┤
-  │ Codec OPUS            │ +170.7 KB  │ +4.3 KB    │ 🔴 Very High │
-  │ Codec VORBIS          │ +108.6 KB  │ +160 bytes │ 🟠 High      │
-  │ Codec AAC             │ +107.1 KB  │ -          │ 🟠 High      │
-  │ Codec MP3             │ +66.0 KB   │ +24 bytes  │ 🟠 High      │
-  │ Codec FLAC            │ +32.2 KB   │ +72 bytes  │ 🟡 Medium    │
-  │ Codec M4A (Container) │ +14.6 KB   │ +160 bytes │ 🟢 Low       │
-  │ File System (FS)      │ +3.3 KB    │ +24 bytes  │ 🟢 Low       │
-  │ Codec WAV             │ +2.9 KB    │ +16 bytes  │ 🟢 Low       │
-  └───────────────────────┴────────────┴────────────┴──────────────┘
+
+| Module Disabled | Flash Gain | RAM Gain | Impact |
+| :--- | :--- | :--- | :--- |
+| **Codec OPUS** | **+170.7 KB** | **+4.3 KB** | 🔴 Very High |
+| **Codec VORBIS** | **+108.6 KB** | +160 bytes | 🟠 High |
+| **Codec AAC** | **+107.1 KB** | - | 🟠 High |
+| **Codec MP3** | **+66.0 KB** | +24 bytes | 🟠 High |
+| **Codec FLAC** | **+32.2 KB** | +72 bytes | 🟡 Medium |
+| **Codec M4A (Container)** | **+14.6 KB** | +160 bytes | 🟢 Low |
+| **File System (FS)** | **+3.3 KB** | +24 bytes | 🟢 Low |
+| **Codec WAV** | **+2.9 KB** | +16 bytes | 🟢 Low |
 
 **Benefit:** Significant reduction in resource usage. Combined, these optimizations can save up to **~487KB of Flash memory**.
 
@@ -95,18 +94,17 @@ Ce document détaille les modifications, améliorations et corrections apportée
 - **Rampe de Volume :** `AUDIO_VOLUME_RAMP_STEPS` pour ajuster la vitesse du fondu (défaut 50, régler à 25 pour plus de réactivité).
 
 ### 📊 Économies de Ressources (Flash & RAM Statique)
-  ┌──────────────────────────┬────────────┬─────────────┬───────────────┐
-  │ Module Désactivé         │ Gain Flash │ Gain RAM    │ Impact        │
-  ├──────────────────────────┼────────────┼─────────────┼───────────────┤
-  │ Codec OPUS               │ +170.7 Ko  │ +4.3 Ko     │ 🔴 Très Élevé │
-  │ Codec VORBIS             │ +108.6 Ko  │ +160 octets │ 🟠 Élevé      │
-  │ Codec AAC                │ +107.1 Ko  │ -           │ 🟠 Élevé      │
-  │ Codec MP3                │ +66.0 Ko   │ +24 octets  │ 🟠 Élevé      │
-  │ Codec FLAC               │ +32.2 Ko   │ +72 octets  │ 🟡 Moyen      │
-  │ Codec M4A (Conteneur)    │ +14.6 Ko   │ +160 octets │ 🟢 Faible     │
-  │ Système de fichiers (FS) │ +3.3 Ko    │ +24 octets  │ 🟢 Faible     │
-  │ Codec WAV                │ +2.9 Ko    │ +16 octets  │ 🟢 Faible     │
-  └──────────────────────────┴────────────┴─────────────┴───────────────┘
+
+| Module Désactivé | Gain Flash | Gain RAM | Impact |
+| :--- | :--- | :--- | :--- |
+| **Codec OPUS** | **+170.7 Ko** | **+4.3 Ko** | 🔴 Très Élevé |
+| **Codec VORBIS** | **+108.6 Ko** | +160 octets | 🟠 Élevé |
+| **Codec AAC** | **+107.1 Ko** | - | 🟠 Élevé |
+| **Codec MP3** | **+66.0 Ko** | +24 octets | 🟠 Élevé |
+| **Codec FLAC** | **+32.2 Ko** | +72 octets | 🟡 Moyen |
+| **Codec M4A (Conteneur)** | **+14.6 Ko** | +160 octets | 🟢 Faible |
+| **Système de fichiers (FS)** | **+3.3 Ko** | +24 octets | 🟢 Faible |
+| **Codec WAV** | **+2.9 Ko** | +16 octets | 🟢 Faible |
 
 **Bénéfice :** Réduction drastique de l'utilisation des ressources. Cumulées, ces optimisations permettent d'économiser jusqu'à **~487 Ko de Flash**.
 
