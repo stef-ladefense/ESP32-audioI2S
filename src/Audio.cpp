@@ -8146,6 +8146,21 @@ void Audio::setTone(float gainLowPass, float gainBandPass, float gainHighPass)
     IIR_calculateCoefficients();
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+void Audio::setToneFrequencies(uint16_t freqLS, uint16_t freqPEQ, uint16_t freqHS)
+{
+    m_audio_items.freq_ls_Hz = freqLS;
+    m_audio_items.freq_peq_Hz = freqPEQ;
+    m_audio_items.freq_hs_Hz = freqHS;
+    IIR_calculateCoefficients();
+}
+// —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+void Audio::getToneFrequencies(uint16_t *freqLS, uint16_t *freqPEQ, uint16_t *freqHS)
+{
+    if (freqLS)  *freqLS  = m_audio_items.freq_ls_Hz;
+    if (freqPEQ) *freqPEQ = m_audio_items.freq_peq_Hz;
+    if (freqHS)  *freqHS  = m_audio_items.freq_hs_Hz;
+}
+// —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 void Audio::forceMono(bool m)
 {                      // #100 mono option
     m_f_forceMono = m; // false stereo, true mono
@@ -8233,13 +8248,12 @@ void Audio::calculateVolumeLimits()
 #else
         if (m_audio_items.volume_curve == 0)
         {
-            // Mode 0: Square (Authentic feeling ported from 3.4.4d)
+            // Mode 0: Square (Quadratic t^2)
             return t * t;
         }
         else
         {
-            // Mode 1: Logarithmic (Authentic feeling ported from 3.4.4d)
-            // v = vol * (exp((vol-1) * log(steps) / (steps-1)) / steps) / steps
+            // Mode 1: Logarithmic (Authentic 3.4.4 formula)
             return (float)(volume * (exp((volume - 1.0f) * log((float)steps) / (float)(steps - 1)) / (float)steps) / (float)steps);
         }
 #endif

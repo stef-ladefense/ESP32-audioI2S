@@ -73,10 +73,11 @@ This document provides a detailed breakdown of the modifications, improvements, 
 ## 8. Performance & Memory Optimizations
 **Improvement:**
 - **Dynamic DSP Bypass:** Skips the filter chain (Equalizer) calculations if all gains are zero.
+- **Dynamic EQ Frequencies:** Added `setToneFrequencies()` and `getToneFrequencies()` to adjust the cutoff frequencies of the 3 bands (LS, PEQ, HS) at runtime.
 - **Static Constexpr:** Moved internal lookup tables to Flash (PROGMEM).
 - **Persistent Resample Buffer:** Implemented a persistent `ps_ptr` buffer for 48kHz resampling.
 - **STL Removal:** Replaced remaining `std::string` usage with C-strings.
-**Benefit:** 10-15% CPU savings during playback without EQ and reduced stress on the memory allocator.
+**Benefit:** 10-15% CPU savings during playback without EQ and total control over the DSP audio signature.
 
 ***
 
@@ -151,10 +152,11 @@ Ce document détaille les modifications, améliorations et corrections apportée
 ## 8. Optimisations Performance & Mémoire
 **Amélioration :**
 - **Bypass DSP Dynamique :** Saut automatique des calculs de l'égaliseur (IIR) si tous les gains sont à 0dB.
+- **Frequences EQ Dynamiques :** Ajout de `setToneFrequencies()` et `getToneFrequencies()` pour ajuster les fréquences de coupure des 3 bandes au runtime.
 - **Constexpr :** Déplacement des tables de recherche internes en Flash (PROGMEM).
 - **Buffer Persistant :** Utilisation d'un buffer `ps_ptr` persistant pour le ré-échantillonnage 48kHz.
 - **Suppression STL :** Remplacement des derniers `std::string` par des chaînes C.
-**Bénéfice :** Gain de 10 à 15% de cycles CPU lors de la lecture sans égalisation et réduction du stress sur l'allocateur mémoire.
+**Bénéfice :** Gain de 10 à 15% de cycles CPU lors de la lecture sans égalisation et contrôle total de la signature sonore DSP.
 
 ***
 

@@ -221,6 +221,8 @@ public:
     uint32_t getInBufferSize(); // returns the size of the inputbuffer in bytes
     void inBufferStatus() { InBuff.showStatus(); }
     void setTone(float gainLowPass, float gainBandPass, float gainHighPass);
+    void setToneFrequencies(uint16_t freqLS, uint16_t freqPEQ, uint16_t freqHS);
+    void getToneFrequencies(uint16_t *freqLS, uint16_t *freqPEQ, uint16_t *freqHS);
     void setI2SCommFMT_LSB(bool commFMT);
     int getCodec() { return m_codec; }
     const char *getCodecname() { return codecname[m_codec]; }
