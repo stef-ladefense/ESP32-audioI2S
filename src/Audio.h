@@ -16,13 +16,19 @@
 // #define AUDIO_CODEC_WAV
 // #define AUDIO_CODEC_OGG          // Active le pack OGG (Conteneur + Opus)
 // #define AUDIO_CODEC_VORBIS       // Support Vorbis (+108 Ko Flash)
-// #define AUDIO_ENABLE_SPEECH
 // #define AUDIO_ENABLE_FS
+// #define AUDIO_ENABLE_SPEECH
+// #define AUDIO_ENABLE_VUMETER     // Active les calculs de spectre et niveaux (VU-meter)
 //  —————————————————————————————————————————————————————————————————————————————
 //  📌 Log Level Selection
 //  0: None, 1: Error, 2: Warning, 3: Info, 4: Debug
 //  —————————————————————————————————————————————————————————————————————————————
 #define AUDIO_LOG_LEVEL 3
+// —————————————————————————————————————————————————————————————————————————————
+//  📌 Equalizer Headroom Strategy
+//  0: Full protection, 1: 50% Hybrid, 2: Disabled (Max Power)
+//  —————————————————————————————————————————————————————————————————————————————
+#define AUDIO_EQ_HEADROOM_MODE 2 
 // —————————————————————————————————————————————————————————————————————————————
 // 📌 Volume Settings
 // Higher value = slower ramp (fade), Lower value = faster ramp.
@@ -551,6 +557,11 @@ private:
     uint8_t m_bitsPerSample = 16;           // bitsPerSample
     uint8_t m_channels = 2;                 //
     uint8_t m_playlistFormat = 0;           // M3U, PLS, ASX
+    struct {
+        float gain_ls = -999.0f; float gain_peq = -999.0f; float gain_hs = -999.0f;
+        uint16_t freq_ls = 0; uint16_t freq_peq = 0; uint16_t freq_hs = 0;
+        uint32_t sampleRate = 0;
+    } m_last_eq;
     uint8_t m_codec = CODEC_NONE;           //
     uint8_t m_m3u8Codec = CODEC_AAC;        // codec of m3u8 stream
     uint8_t m_expectedCodec = CODEC_NONE;   // set in connecttohost (e.g. http://url.mp3 -> CODEC_MP3)

@@ -1,83 +1,93 @@
-# ESP32-audioI2S
+# ESP32-audioI2S (v3.4.5d_SLD)
 
-:warning: **This library only works on multi-core chips like ESP32, ESP32-S3 and ESP32-P4. Your board must have PSRAM! It does not work on the ESP32-S2, ESP32-C3 etc** :warning:
-
-***
 # Changes applied to ESP32-audioI2S (v3.4.5d)
 
 This document provides a detailed breakdown of the modifications, improvements, and bug fixes applied to the library. Each change aims to optimize resource usage (Flash, RAM, CPU) and improve system stability.
 
-## 1. Modular Configuration & Codec Selection
+### 1. Modular Configuration
+
+1) Codec Selection
 **Context:** By default, the library compiles all decoders and features, consuming significant Flash memory even if only one format is used.
 **Improvement:**
 - **Codec Selection:** Selective enable/disable via `#define` macros in `Audio.h`.
-- **OGG Pack:** Enabling `AUDIO_CODEC_OGG` activates the OGG container and the **Opus** decoder (modern high-quality streams). **Vorbis** support (legacy) can be added optionally.
+- **OGG Pack:** Enabling `AUDIO_CODEC_OGG` activates the OGG container and the **Opus** decoder (modern high-quality streams). **Vorbis** support can be added optionally.
 - **M4A/AAC:** Enabling `AUDIO_CODEC_M4A` (container) automatically activates the **AAC** decoder, as M4A files almost exclusively contain AAC-encoded audio.
-- **Log Level:** `AUDIO_LOG_LEVEL` (0-4) to strip log strings from the binary at compile-time.
-- **Volume Ramp:** `AUDIO_VOLUME_RAMP_STEPS` to adjust fade speed (default 50, use 25 for faster response).
 
-### 📊 Resource Savings (Flash & Static RAM)
+2) Granular Log Control
+**Improvement:** Added `AUDIO_LOG_LEVEL` macro (0-4) to strip log strings from the binary at compile-time.
+**Benefit:** Saves 10-15KB of Flash. Since logs are handled by the preprocessor, format strings are physically removed from the final binary if the level is disabled.
 
-| Module Disabled | Flash Gain | RAM Gain | Impact |
-| :--- | :--- | :--- | :--- |
-| **Codec OPUS** | **+170.7 KB** | **+4.3 KB** | 🔴 Very High |
-| **Codec VORBIS** | **+108.6 KB** | +160 bytes | 🟠 High |
-| **Codec AAC** | **+107.1 KB** | - | 🟠 High |
-| **Codec MP3** | **+66.0 KB** | +24 bytes | 🟠 High |
-| **Codec FLAC** | **+32.2 KB** | +72 bytes | 🟡 Medium |
-| **Codec M4A (Container)** | **+14.6 KB** | +160 bytes | 🟢 Low |
-| **File System (FS)** | **+3.3 KB** | +24 bytes | 🟢 Low |
-| **Codec WAV** | **+2.9 KB** | +16 bytes | 🟢 Low |
+3) VU-Meter Management
+**Improvement:** Added `AUDIO_ENABLE_VUMETER` macro to enable or disable real-time peak level and spectrum calculations.
+**Benefit:** Saves ~3-5% CPU when disabled, freeing up resources for audio decoding.
 
-**Benefit:** Significant reduction in resource usage. Combined, these optimizations can save up to **~487KB of Flash memory**.
+4) Dynamic EQ Headroom
+**Improvement:** Added `AUDIO_EQ_HEADROOM_MODE` macro to control volume compensation during EQ boosts (0: Full, 1: 50%, 2: Disabled/Max Power).
+**Benefit:** Allows users to choose between full audio protection or maximum output loudness.
 
-## 2. Robust I2S State Management
-**Context:** The library often generated `E (10013)` errors during zapping or station changes because it tried to disable an already disabled I2S channel.
-**Improvement:**
-- Secured `I2Sstop()` by synchronizing the software state (`m_f_i2s_channel_enabled`) with the hardware.
-- The software flag only resets to `false` if the hardware confirms a successful stop (`ESP_OK`).
-**Benefit:** Eliminates `E (10013)` errors during rapid zapping and ensures reliable hardware/software synchronization.
-
-## 3. Restored "v3.4.4" Volume Curves
-**Context:** Standard volume curves can feel unnatural or too slow at low levels.
-**Improvement:**
-- Re-implemented **Square** (Quadratic) and **Logarithmic** (authentic 3.4.4) curves.
-- **Mode 0 (Square):** Punchy and very responsive.
-- **Mode 1 (Log):** Natural feel, faithful to the 3.4.4 version.
-- **Switch:** A `#define CurveOff345` macro is available in `Audio.h` to force the use of the original v3.4.5 polynomial curves if preferred.
-**Benefit:** Offers an immediate power increase and a more natural auditory feeling, while maintaining compatibility with the original v3.4.5 behavior via the macro.
-
-## 4. Adjustable Volume Ramp Speed
+5) Adjustable Volume Ramp Speed
 **Improvement:** Added `#define AUDIO_VOLUME_RAMP_STEPS` in `Audio.h`.
 **Benefit:** Controls the "fade" speed during Mute or volume changes.
 - **Value 50 (Default):** Smooth standard fade.
 - **Value 25:** Doubles the response speed (more reactive).
 
-## 5. Modular Speech Features (TTS) & String Elimination
-**Context:** The TTS features heavily relied on the Arduino `String` class, causing heap fragmentation through dynamic concatenations.
-**Improvement:**
-- Added `AUDIO_ENABLE_SPEECH` macro to completely disable TTS code if unused.
-- **Refactoring:** Completely rewrote `openai_speech()` to use `const char*`, `ps_ptr` buffers, and `snprintf`.
+6) Modular File System Support (FS)
+**Improvement:** Added `AUDIO_ENABLE_FS` macro to conditionally include or exclude all local file processing code (SD, LittleFS).
+**Benefit:** Removes unnecessary dependencies and significantly reduces the final binary footprint.
+
+7) Modular Speech Features (TTS) & String Elimination
+**Context:** TTS features heavily relied on the Arduino `String` class, causing heap fragmentation.
+**Improvement:** Added `AUDIO_ENABLE_SPEECH` macro and completely rewrote `openai_speech()` using `const char*` and `ps_ptr` buffers.
 **Benefit:** Eliminates heap fragmentation risks and saves Flash memory when the module is disabled.
 
-## 6. Modular File System Support
-**Context:** Unconditional inclusion of FS libraries (SD, SD_MMC, etc.) is unnecessary for pure WebRadio projects.
-**Improvement:**
-- Added `AUDIO_ENABLE_FS` macro to conditionally include or exclude all local file processing code.
-**Benefit:** Removes unnecessary dependencies and significantly reduces the binary footprint.
+**Global Benefit:** Drastic reduction in resource usage. Combined, these optimizations can save up to **~487KB of Flash memory**.
 
-## 7. Granular Log Control
-**Improvement:** Added `AUDIO_LOG_LEVEL` macro (0=None to 4=Debug).
-**Benefit:** Saves ~10-15KB of Flash memory. Since logs are implemented as preprocessor macros, choosing a lower level prevents the literal strings (text messages) from being compiled into the binary. If a log level is disabled, its associated text is physically removed from the Flash memory.
 
-## 8. Performance & Memory Optimizations
+### 2. Robust I2S State Management
+**Context:** `E (10013)` errors often appeared during rapid zapping or station changes because the library tried to disable an already stopped I2S channel.
 **Improvement:**
-- **Dynamic DSP Bypass:** Skips the filter chain (Equalizer) calculations if all gains are zero.
-- **Dynamic EQ Frequencies:** Added `setToneFrequencies()` and `getToneFrequencies()` to adjust the cutoff frequencies of the 3 bands (LS, PEQ, HS) at runtime.
-- **Static Constexpr:** Moved internal lookup tables to Flash (PROGMEM).
-- **Persistent Resample Buffer:** Implemented a persistent `ps_ptr` buffer for 48kHz resampling.
-- **STL Removal:** Replaced remaining `std::string` usage with C-strings.
-**Benefit:** 10-15% CPU savings during playback without EQ and total control over the DSP audio signature.
+- Secured `I2Sstop()` by synchronizing the software state (`m_f_i2s_channel_enabled`) with the hardware.
+- The software flag only resets to `false` if the hardware confirms a successful stop (`ESP_OK`).
+**Benefit:** Eliminates `E (10013)` errors and ensures reliable hardware/software synchronization.
+
+### 3. Restored "v3.4.4" Volume Curves
+**Context:** Standard volume curves can feel unnatural or too slow at low levels.
+**Improvement:**
+- Re-implemented **Square** (Quadratic) and **Logarithmic** (authentic v3.4.4) formulas.
+- **Mode 0 (Square):** Punchy and very responsive.
+- **Mode 1 (Log):** Natural feel, faithful to the v3.4.4 version.
+- **Switch:** A `#define CurveOff345` macro is available in `Audio.h` to force the use of the original v3.4.5 polynomial curves if preferred.
+**Benefit:** Offers an immediate power increase and a more natural auditory feeling.
+
+### 4. Bypass DSP Dynamique
+**Context:** The IIR filter chain (Equalizer) consumes CPU cycles for every sample, even when gains are neutral (0 dB).
+**Improvement:** Automatic detection of the neutral EQ state to bypass the entire calculation routine.
+**Benefit:** 10-15% CPU savings during flat playback.
+
+### 5. Fréquences EQ Dynamiques
+**Context:** EQ cutoff frequencies were previously hardcoded.
+**Improvement:** Added `setToneFrequencies()` and `getToneFrequencies()` methods to adjust cutoff frequencies at runtime.
+**Benefit:** Allows dynamic sound signature adjustments to match the specific audio hardware.
+
+### 6. Gestion EQ Anti-Clic
+**Context:** In the original library, every gain change triggered a brutal filter reset, causing audible "clicks".
+**Improvement:** Completely redesigned `IIR_calculateCoefficients()` with a state-tracking system (`m_last_eq`) and removed the global filter reset.
+**Benefit:** Perfectly smooth sound transitions during adjustments.
+
+### 7. Stratégie Headroom EQ
+**Context:** EQ boosts can saturate the signal. The original library reduced global volume to compensate for every boost.
+**Improvement:** Added `AUDIO_EQ_HEADROOM_MODE` to choose the severity of this compensation (0: Full, 1: Hybrid, 2: Disabled).
+**Benefit:** Total flexibility between audio protection and raw power.
+
+### 8. Performance & Memory Optimizations
+**Improvement:** Low-level optimizations to maximize ESP32 efficiency.
+- **FPU Optimization:** Forced usage of the 32-bit hardware floating point unit.
+- **Constexpr:** Internal lookup tables moved to Flash memory (PROGMEM).
+- **Buffer Persistent:** Persistent `ps_ptr` buffer for 48kHz resampling.
+- **STL Removal:** Replaced `std::string` with C-style strings.
+**Benefit:** Overall performance gain, reduced heap stress, and control over the DSP sound signature.
+
+> ℹ️ **For detailed technical implementation of these features, please refer to [technic.md](./technic.md).**
 
 ***
 
@@ -85,38 +95,55 @@ This document provides a detailed breakdown of the modifications, improvements, 
 
 Ce document détaille les modifications, améliorations et corrections apportées à la bibliothèque. Chaque changement vise à optimiser l'utilisation des ressources (Flash, RAM, CPU) et à améliorer la stabilité du système.
 
-## 1. Configuration Modulaire et Sélection des Codecs
+### 1. Configuration Modulaire
+
+1) Sélection des Codecs
 **Contexte :** Par défaut, la bibliothèque compile tous les décodeurs et fonctionnalités, consommant beaucoup de mémoire Flash même si un seul format est utilisé.
 **Amélioration :**
 - **Sélection des Codecs :** Activation sélective via des macros `#define` dans `Audio.h`.
 - **Pack OGG :** L'activation de `AUDIO_CODEC_OGG` active le conteneur OGG et le décodeur **Opus** (haute qualité moderne). Le support **Vorbis** peut être ajouté en option.
 - **M4A/AAC :** L'activation de `AUDIO_CODEC_M4A` (conteneur) active automatiquement le décodeur **AAC**, car les fichiers M4A contiennent presque exclusivement de l'audio encodé en AAC.
-- **Niveau de Log :** `AUDIO_LOG_LEVEL` (0-4) pour retirer les messages de log du binaire à la compilation.
-- **Rampe de Volume :** `AUDIO_VOLUME_RAMP_STEPS` pour ajuster la vitesse du fondu (défaut 50, régler à 25 pour plus de réactivité).
 
-### 📊 Économies de Ressources (Flash & RAM Statique)
+2) Contrôle Granulaire des Logs
+**Amélioration :** Ajout de la macro `AUDIO_LOG_LEVEL` (0-4) pour retirer les messages de log du binaire à la compilation.
+**Bénéfice :** Économie de 10 à 15 Ko de Flash. Les logs étant gérés par le préprocesseur, les chaînes de caractères (textes des messages) sont physiquement retirées du binaire final lors de la compilation si le niveau est désactivé. Si un message n'est pas compilé, il n'occupe aucun octet en mémoire Flash.
 
-| Module Désactivé | Gain Flash | Gain RAM | Impact |
-| :--- | :--- | :--- | :--- |
-| **Codec OPUS** | **+170.7 Ko** | **+4.3 Ko** | 🔴 Très Élevé |
-| **Codec VORBIS** | **+108.6 Ko** | +160 octets | 🟠 Élevé |
-| **Codec AAC** | **+107.1 Ko** | - | 🟠 Élevé |
-| **Codec MP3** | **+66.0 Ko** | +24 octets | 🟠 Élevé |
-| **Codec FLAC** | **+32.2 Ko** | +72 octets | 🟡 Moyen |
-| **Codec M4A (Conteneur)** | **+14.6 Ko** | +160 octets | 🟢 Faible |
-| **Système de fichiers (FS)** | **+3.3 Ko** | +24 octets | 🟢 Faible |
-| **Codec WAV** | **+2.9 Ko** | +16 octets | 🟢 Faible |
+3) Gestion du VU-Mètre
+**Amélioration :** Ajout de la macro `AUDIO_ENABLE_VUMETER` pour activer ou désactiver les calculs de spectre et de niveaux en temps réel.
+**Bénéfice :** Économie de ~3-5% CPU si désactivé, libérant des ressources pour le décodage audio.
 
-**Bénéfice :** Réduction drastique de l'utilisation des ressources. Cumulées, ces optimisations permettent d'économiser jusqu'à **~487 Ko de Flash**.
+4) Headroom EQ Dynamique
+**Amélioration :** Ajout de la macro `AUDIO_EQ_HEADROOM_MODE` pour contrôler la compensation de volume lors d'un boost EQ (0: Totale, 1: 50%, 2: Désactivée/Puissance Max).
+**Bénéfice :** Permet de choisir entre une protection totale contre la saturation ou une puissance sonore maximale.
 
-## 2. Gestion d'État I2S Robuste
+5) Vitesse de Rampe du Volume Ajustable
+**Amélioration :** Ajout la macro `#define AUDIO_VOLUME_RAMP_STEPS` dans `Audio.h`.
+**Bénéfice :** Permet de régler la vitesse du "fondu" (Fade in/out) lors du Mute ou des changements de volume.
+- **Valeur 50 (Défaut) :** Fondu standard et fluide.
+- **Valeur 25 :** Double la vitesse de réaction (plus réactif).
+
+6) Modularité du Système de Fichiers (FS)
+**Amélioration :** Ajout de la macro `AUDIO_ENABLE_FS` permet d'exclure physiquement tout le code lié aux fichiers locaux (SD, LittleFS).
+**Bénéfice :** Supprime les dépendances inutiles et allège considérablement le binaire final.
+
+7) Modularité TTS et Suppression de String
+**Contexte :** Les fonctions de synthèse vocale utilisaient la classe Arduino `String`, provoquant une fragmentation de la mémoire (tas/heap) à cause des concaténations dynamiques.
+**Amélioration :** Ajout de la macro `AUDIO_ENABLE_SPEECH` pour désactiver complètement le TTS.
+- **Refactorisation :** Réécriture complète de `openai_speech()` en utilisant des `const char*` et `snprintf` avec des buffers `ps_ptr`.
+**Bénéfice :** Élimination des risques de fragmentation mémoire et économie de Flash si le module est désactivé.
+
+**Bénéfice Global :** Réduction drastique de l'utilisation des ressources. Cumulées, ces optimisations permettent d'économiser jusqu'à **~487 Ko de Flash**.
+
+
+### 2. Gestion d'État I2S Robuste
 **Contexte :** Des erreurs `E (10013)` apparaissaient fréquemment lors du zapping ou du changement de station car la bibliothèque tentait de désactiver un canal I2S déjà arrêté.
 **Amélioration :**
 - Sécurisation de `I2Sstop()` en synchronisant l'état logiciel (`m_f_i2s_channel_enabled`) avec le matériel.
 - Le flag logiciel ne repasse à `false` que si le matériel confirme l'arrêt effectif (`ESP_OK`).
 **Bénéfice :** Élimine les erreurs `E (10013)` lors des changements rapides et garantit une synchronisation fiable.
 
-## 3. Restauration des Courbes de Volume "v3.4.4"
+
+### 3. Restauration des Courbes de Volume "v3.4.4"
 **Contexte :** Les courbes de volume standard peuvent paraître peu naturelles ou trop lentes à bas volume.
 **Amélioration :**
 - Ré-implémentation des courbes **Square** (Quadratique) et **Logarithmique** (authentique 3.4.4).
@@ -125,131 +152,41 @@ Ce document détaille les modifications, améliorations et corrections apportée
 - **Commutateur :** Une macro `#define CurveOff345` est disponible dans `Audio.h` pour forcer l'utilisation de la courbe polynomiale originale de la v3.4.5 si nécessaire.
 **Bénéfice :** Offre une montée en puissance immédiate et un ressenti auditif plus naturel, tout en permettant de revenir au comportement standard de la v3.4.5 via la macro.
 
-## 4. Vitesse de Rampe du Volume Ajustable
-**Amélioration :** Ajout du paramètre `#define AUDIO_VOLUME_RAMP_STEPS` dans `Audio.h`.
-**Bénéfice :** Permet de régler la vitesse du "fondu" (Fade in/out) lors du Mute ou des changements de volume.
-- **Valeur 50 (Défaut) :** Fondu standard et fluide.
-- **Valeur 25 :** Double la vitesse de réaction (plus réactif).
 
-## 5. Modularité TTS et Suppression de String
-**Contexte :** Les fonctions de synthèse vocale utilisaient la classe Arduino `String`, provoquant une fragmentation de la mémoire (tas/heap).
-**Amélioration :**
-- Ajout de la macro `AUDIO_ENABLE_SPEECH` pour désactiver complètement le TTS.
-- **Refactorisation :** Réécriture complète de `openai_speech()` en utilisant des `const char*` et `snprintf` avec des buffers `ps_ptr`.
-**Bénéfice :** Élimination des risques de fragmentation mémoire et économie de Flash si le module est désactivé.
+### 4. Bypass DSP Dynamique
+**Contexte :** La chaîne de filtres IIR (Égaliseur) consomme des cycles CPU pour chaque échantillon, même lorsque les gains sont neutres (0 dB).
+**Amélioration :** Détection automatique de l'état neutre de l'égaliseur pour shunter intégralement la routine de calcul.
+**Bénéfice :** Gain de 10 à 15% de cycles CPU lors de la lecture sans égalisation, prolongeant l'autonomie et libérant de la puissance pour d'autres tâches.
 
-## 6. Modularité du Système de Fichiers (FS)
-**Contexte :** L'inclusion systématique des librairies de fichiers (SD, SD_MMC, etc.) est inutile pour une WebRadio pure.
-**Amélioration :**
-- Ajout de la macro `AUDIO_ENABLE_FS`.
-- Encadrement conditionnel de toutes les méthodes liées au système de fichiers.
-**Bénéfice :** Supprime les dépendances inutiles et allège considérablement le binaire final.
 
-## 7. Contrôle Granulaire des Logs
-**Amélioration :** Ajout de la macro `AUDIO_LOG_LEVEL` (0=Aucun à 4=Debug).
-**Bénéfice :** Économie de 10 à 15 Ko de Flash. Les logs étant gérés par le préprocesseur, les chaînes de caractères (textes des messages) sont physiquement retirées du binaire final lors de la compilation si le niveau est désactivé. Si un message n'est pas compilé, il n'occupe aucun octet en mémoire Flash.
+### 5. Fréquences EQ Dynamiques
+**Contexte :** Les fréquences de coupure des 3 bandes de l'égaliseur (Basses, Médiums, Aigus) étaient auparavant figées dans le code de la bibliothèque.
+**Amélioration :** Ajout des méthodes publiques `setToneFrequencies()` et `getToneFrequencies()` pour ajuster les fréquences de coupure au runtime.
+**Bénéfice :** Permet d'ajuster dynamiquement la signature sonore pour s'adapter parfaitement au matériel audio utilisé.
 
-## 8. Optimisations Performance & Mémoire
-**Amélioration :**
-- **Bypass DSP Dynamique :** Saut automatique des calculs de l'égaliseur (IIR) si tous les gains sont à 0dB.
-- **Frequences EQ Dynamiques :** Ajout de `setToneFrequencies()` et `getToneFrequencies()` pour ajuster les fréquences de coupure des 3 bandes au runtime.
+
+### 6. Gestion EQ Anti-Clic
+**Contexte :** Dans la bibliothèque originale, chaque modification de gain déclenchait une remise à zéro brutale des filtres, provoquant un "clic" ou un "glitch" sonore.
+**Amélioration :** Refonte complète de `IIR_calculateCoefficients()` avec un système de suivi d'état (`m_last_eq`) et suppression de la réinitialisation systématique de la mémoire des filtres.
+**Bénéfice :** Transition sonore parfaitement fluide lors de la manipulation de l'encodeur, offrant un ressenti professionnel sans aucune interruption de l'onde audio.
+
+
+### 7. Stratégie Headroom EQ
+**Contexte :** L'augmentation des gains de l'égaliseur peut saturer le signal (clipping). La bibliothèque originale réduit systématiquement le volume global pour compenser chaque boost.
+**Amélioration :** Ajout de la macro `AUDIO_EQ_HEADROOM_MODE` pour choisir la sévérité de cette compensation.
+- **Mode 0 (Totale) :** Protection maximale (volume réduit à 100% du boost).
+- **Mode 1 (Hybride) :** Compromis (volume réduit à 50% du boost).
+- **Mode 2 (Désactivée) :** Puissance maximale (aucune réduction automatique).
+**Bénéfice :** Offre une flexibilité totale entre protection audio et puissance sonore brute.
+
+
+### 8. Optimisations Performance & Mémoire
+**Amélioration :** Regroupe plusieurs optimisations de bas niveau pour maximiser l'efficacité de l'ESP32.
+- **Optimisation FPU :** Usage forcé de l'unité de calcul flottante matérielle 32 bits.
 - **Constexpr :** Déplacement des tables de recherche internes en Flash (PROGMEM).
 - **Buffer Persistant :** Utilisation d'un buffer `ps_ptr` persistant pour le ré-échantillonnage 48kHz.
 - **Suppression STL :** Remplacement des derniers `std::string` par des chaînes C.
-**Bénéfice :** Gain de 10 à 15% de cycles CPU lors de la lecture sans égalisation et contrôle total de la signature sonore DSP.
+**Bénéfice :** Gain de performance global, réduction du stress sur l'allocateur mémoire et contrôle total de la signature sonore DSP.
 
-***
 
-Plays mp3, m4a and wav files from SD card via I2S with external hardware.
-HELIX-mp3 and faad2-aac decoder is included. There is also an OPUS decoder for Fullband, an VORBIS decoder and a FLAC decoder.
-Works with MAX98357A (3 Watt amplifier with DAC), connected three lines (DOUT, BLCK, LRC) to I2S. The I2S output frequency is always 48kHz, regardless of the input source, so Bluetooth devices can also be connected without any problems.
-For stereo are two MAX98357A necessary. AudioI2S works with UDA1334A (Adafruit I2S Stereo Decoder Breakout Board), PCM5102A and CS4344.
-Other HW may work but not tested. Plays also icy-streams, GoogleTTS and OpenAIspeech. Can be compiled with Arduino IDE. [WIKI](https://github.com/schreibfaul1/ESP32-audioI2S/wiki)
-
-```` c++
-#include "Arduino.h"
-#include "WiFi.h"
-#include "Audio.h"
-
-// Digital I/O used
-#define I2S_DOUT      25
-#define I2S_BCLK      27
-#define I2S_LRC       26
-
-String ssid =     "*******";
-String password = "*******";
-
-Audio audio;
-
-// callbacks
-void my_audio_info(Audio::msg_t m) {
-    Serial.printf("%s: %s\n", m.s, m.msg);
-}
-
-void setup() {
-    Audio::audio_info_callback = my_audio_info; // optional
-    Serial.begin(115200);
-    WiFi.begin(ssid.c_str(), password.c_str());
-    while (WiFi.status() != WL_CONNECTED) delay(1500);
-    audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    audio.setVolume(21); // default 0...21
-    audio.connecttohost("http://stream.antennethueringen.de/live/aac-64/stream.antennethueringen.de/");
-}
-
-void loop(){
-    audio.loop();
-    vTaskDelay(1);
-}
-
-````
-You can find more examples here: https://github.com/schreibfaul1/ESP32-audioI2S/tree/master/examples
-
-````c++
-// detailed cb output
-void my_audio_info(Audio::msg_t m) {
-    switch(m.e){
-        case Audio::evt_info:           Serial.printf("info: ....... %s\n", m.msg); break;
-        case Audio::evt_eof:            Serial.printf("end of file:  %s\n", m.msg); break;
-        case Audio::evt_bitrate:        Serial.printf("bitrate: .... %s\n", m.msg); break; // icy-bitrate or bitrate from metadata
-        case Audio::evt_icyurl:         Serial.printf("icy URL: .... %s\n", m.msg); break;
-        case Audio::evt_id3data:        Serial.printf("ID3 data: ... %s\n", m.msg); break; // id3-data or metadata
-        case Audio::evt_lasthost:       Serial.printf("last URL: ... %s\n", m.msg); break;
-        case Audio::evt_name:           Serial.printf("station name: %s\n", m.msg); break; // station name or icy-name
-        case Audio::evt_streamtitle:    Serial.printf("stream title: %s\n", m.msg); break;
-        case Audio::evt_icylogo:        Serial.printf("icy logo: ... %s\n", m.msg); break;
-        case Audio::evt_icydescription: Serial.printf("icy descr: .. %s\n", m.msg); break;
-        case Audio::evt_image: for(int i = 0; i < m.vec.size(); i += 2){
-                                        Serial.printf("cover image:  segment %02i, pos %07lu, len %05lu\n", i / 2, m.vec[i], m.vec[i + 1]);} break; // APIC
-        case Audio::evt_lyrics:         Serial.printf("sync lyrics:  %s\n", m.msg); break;
-        case Audio::evt_log   :         Serial.printf("audio_logs:   %s\n", m.msg); break;
-        default:                        Serial.printf("message:..... %s\n", m.msg); break;
-    }
-}
-````
-<br>
-
-|Codec       | ESP32       |ESP32-S3 or ESP32-P4         |                          |
-|------------|-------------|-----------------------------|--------------------------|
-| mp3        | y           | y                           |                          |
-| aac        | y           | y                           |                          |
-| aacp       | y (mono)    | y (+SBR, +Parametric Stereo)|                          |
-| wav        | y           | y                           |                          |
-| flac       | y           | y                           |blocksize max 24576 bytes |
-| vorbis     | y           | y                           | <=196Kbit/s              |
-| m4a        | y           | y                           |                          |
-| opus       | y           | y                           |                          |
-
-<br>
-
-***
-Wiring
-![schematic](https://github.com/user-attachments/assets/77ce30d2-acb1-4b5d-a9d6-4f1e3d56e385)
-
-***
-Impulse diagram
-![Impulse diagram](https://github.com/schreibfaul1/ESP32-audioI2S/blob/master/additional_info/Impulsdiagramm.jpg)
-***
-Yellobyte has developed an all-in-one board. It includes an ESP32-S3 N8R2, 2x MAX98357 and an SD card adapter.
-Documentation, circuit diagrams and examples can be found here: https://github.com/yellobyte/ESP32-DevBoards-Getting-Started
-![image](https://github.com/user-attachments/assets/4002d09e-8e76-4e08-9265-188fed7628d3)
-
+> ℹ️ **Pour le détail de l'implémentation technique de ces fonctions, veuillez consulter le fichier [technic.md](./technic.md).**

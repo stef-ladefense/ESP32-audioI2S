@@ -4368,11 +4368,15 @@ void IRAM_ATTR Audio::playChunk()
     //------------------------------------------------------------------------------------------
     for (int i = 0; i < m_validSamples; i++)
     {
+#ifdef AUDIO_ENABLE_VUMETER
         calculateVUlevel(&m_outBuff[i * 2]);
+#endif
         IIR_filter(&m_outBuff[i * 2]);
         Gain(&m_outBuff[i * 2]);
     }
+#ifdef AUDIO_ENABLE_VUMETER
     processSpectrum();
+#endif
     if (m_f_forceMono)
         stereo2mono(m_outBuff.get(), m_validSamples);
     //------------------------------------------------------------------------------------------
@@ -8019,6 +8023,7 @@ void Audio::reconfigI2S()
     i2s_channel_enable(m_i2s_tx_handle);
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+#ifdef AUDIO_ENABLE_VUMETER
 void Audio::calculateVUlevel(int32_t *sample)
 { // Envelope-Follower
 
@@ -8122,6 +8127,7 @@ void Audio::calculateVUlevel(int32_t *sample)
         }
     }
 }
+#endif
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 uint16_t Audio::getVUlevel()
 {
@@ -8278,6 +8284,7 @@ void Audio::calculateVolumeLimits()
     AUDIO_LOG_DEBUG("m_limiter[LEFTCHANNEL] %f, m_limiter[RIGHTCHANNEL] %f", m_audio_items.limiter[LEFTCHANNEL], m_audio_items.limiter[RIGHTCHANNEL]);
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
+#ifdef AUDIO_ENABLE_VUMETER
 void Audio::processSpectrum()
 {
 
@@ -8402,6 +8409,7 @@ void Audio::processSpectrum()
     //    AUDIO_LOG_INFO("% 4i, % 4i, % 4i, % 4i, % 4i, % 4i ", m_fft_items.spectrum[0], m_fft_items.spectrum[1],  m_fft_items.spectrum[2],  m_fft_items.spectrum[3],  m_fft_items.spectrum[4],
     //    m_fft_items.spectrum[3]);
 }
+#endif
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 void Audio::Gain(int32_t *sample)
 {
@@ -8447,21 +8455,35 @@ void Audio::stereo2mono(int32_t *buff, uint16_t validSamples)
 void Audio::IIR_calculateCoefficients()
 { // Infinite Impulse Response (IIR) filters
 
-    AUDIO_LOG_DEBUG("gain gain_ls_db %f, gain gain_peq_db %f, gain gain_hs_db %f", m_audio_items.gain_ls_db, m_audio_items.gain_peq_db, m_audio_items.gain_hs_db);
-
     const float FcLS = m_audio_items.freq_ls_Hz;    // Frequency LowShelf(Hz)
     const float FcPKEQ = m_audio_items.freq_peq_Hz; // Frequency PeakEQ(Hz)
     const float FcHS = m_audio_items.freq_hs_Hz;    // Frequency HighShelf(Hz)
+    const float QS = 0.707f;                         // Quality Slope (Shelf)
+
+    // Optimization: check what actually changed
+    bool sampleRateChanged = (m_last_eq.sampleRate != m_i2s_items.sampleRate);
+    bool lsChanged = sampleRateChanged || (m_last_eq.gain_ls != m_audio_items.gain_ls_db) || (m_last_eq.freq_ls != FcLS);
+    bool peqChanged = sampleRateChanged || (m_last_eq.gain_peq != m_audio_items.gain_peq_db) || (m_last_eq.freq_peq != FcPKEQ);
+    bool hsChanged = sampleRateChanged || (m_last_eq.gain_hs != m_audio_items.gain_hs_db) || (m_last_eq.freq_hs != FcHS);
+
+    if (!lsChanged && !peqChanged && !hsChanged)
+        return; // nothing to do
 
     float normFreqLS = FcLS / m_i2s_items.sampleRate;    // filter cut off frequency
     float normFreqPEQ = FcPKEQ / m_i2s_items.sampleRate; // filter center frequency
     float normFreqHS = FcHS / m_i2s_items.sampleRate;    // filter cut off frequency
-    const float QS = 0.707;                              // Quality Slope (Shelf)
 
-    float total_boost_db = fmax(fmax(fmax(0, m_audio_items.gain_ls_db), m_audio_items.gain_peq_db), m_audio_items.gain_hs_db); // dynamic headroom
-    m_audio_items.pre_gain = powf(10.0, -total_boost_db / 20);
+    float total_boost_db = fmaxf(fmaxf(fmaxf(0.0f, m_audio_items.gain_ls_db), m_audio_items.gain_peq_db), m_audio_items.gain_hs_db); // dynamic headroom
 
-    auto dsps_biquad_gen_peakingEQ_f32 = [&](float *c, float f, int8_t g, const float Q) -> void
+#if AUDIO_EQ_HEADROOM_MODE == 0
+    m_audio_items.pre_gain = powf(10.0f, -total_boost_db / 20.0f); // Full protection
+#elif AUDIO_EQ_HEADROOM_MODE == 1
+    m_audio_items.pre_gain = powf(10.0f, -total_boost_db / 40.0f); // 50% protection
+#else
+    m_audio_items.pre_gain = 1.0f;                             // Max power (Disabled)
+#endif
+
+    auto dsps_biquad_gen_peakingEQ_f32 = [&](float *c, float f, float g, const float Q) -> void
     {
         float A = powf(10.0f, g / 40.0f);
         float w0 = 2.0f * M_PI * f;
@@ -8481,16 +8503,30 @@ void Audio::IIR_calculateCoefficients()
         c[4] = a2 / a0;
     };
 
-    dsps_biquad_gen_lowShelf_f32(m_audio_items.coeffs[LOWSHELF], normFreqLS, m_audio_items.gain_ls_db, QS);
-    dsps_biquad_gen_peakingEQ_f32(m_audio_items.coeffs[PEAKINGEQ], normFreqPEQ, m_audio_items.gain_peq_db, QS); // my own calc.
-    dsps_biquad_gen_highShelf_f32(m_audio_items.coeffs[HIFGSHELF], normFreqHS, m_audio_items.gain_hs_db, QS);
+    // SÉLECTIVE Update: Only recalculate what's needed.
+    // IMPORTANT: memset is REMOVED to avoid clicks (preserving filter history).
+    if (lsChanged)
+        dsps_biquad_gen_lowShelf_f32(m_audio_items.coeffs[LOWSHELF], normFreqLS, m_audio_items.gain_ls_db, QS);
+    if (peqChanged)
+        dsps_biquad_gen_peakingEQ_f32(m_audio_items.coeffs[PEAKINGEQ], normFreqPEQ, m_audio_items.gain_peq_db, QS);
+    if (hsChanged)
+        dsps_biquad_gen_highShelf_f32(m_audio_items.coeffs[HIFGSHELF], normFreqHS, m_audio_items.gain_hs_db, QS);
 
+    AUDIO_LOG_DEBUG("gain gain_ls_db %f, gain gain_peq_db %f, gain gain_hs_db %f", m_audio_items.gain_ls_db, m_audio_items.gain_peq_db, m_audio_items.gain_hs_db);
     AUDIO_LOG_DEBUG("\n([%f, %f, %f], [1.0, %f, %f]), # LOWSHELF\n([%f,  %f,  %f ], [1.0, %f,  %f ]), # PEAKINGEQ\n([%f, %f, %f], [1.0, %f, %f]), # HIGHSHELF\n", m_audio_items.coeffs[0][0],
                     m_audio_items.coeffs[0][1], m_audio_items.coeffs[0][2], m_audio_items.coeffs[0][3], m_audio_items.coeffs[0][4], m_audio_items.coeffs[1][0], m_audio_items.coeffs[1][1],
                     m_audio_items.coeffs[1][2], m_audio_items.coeffs[1][3], m_audio_items.coeffs[1][4], m_audio_items.coeffs[2][0], m_audio_items.coeffs[2][1], m_audio_items.coeffs[2][2],
                     m_audio_items.coeffs[2][3], m_audio_items.coeffs[2][4]);
     AUDIO_LOG_DEBUG("m_audio_items.pre_gain %f", m_audio_items.pre_gain);
-    memset(m_audio_items.state_biquad, 0, sizeof(m_audio_items.state_biquad));
+
+    // Save last state
+    m_last_eq.gain_ls = m_audio_items.gain_ls_db;
+    m_last_eq.gain_peq = m_audio_items.gain_peq_db;
+    m_last_eq.gain_hs = m_audio_items.gain_hs_db;
+    m_last_eq.freq_ls = (uint16_t)FcLS;
+    m_last_eq.freq_peq = (uint16_t)FcPKEQ;
+    m_last_eq.freq_hs = (uint16_t)FcHS;
+    m_last_eq.sampleRate = m_i2s_items.sampleRate;
 }
 // —————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 void Audio::IIR_filter(int32_t *sample)
@@ -9941,7 +9977,9 @@ void Audio::performAudioTask()
     if (!m_f_running)
     {
         int32_t c[2] = {0};
+#ifdef AUDIO_ENABLE_VUMETER
         calculateVUlevel(c);
+#endif
         gain_ramp();
         vTaskDelay(20);
         return;
